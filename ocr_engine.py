@@ -30,6 +30,7 @@ _ocr = PaddleOCR(
     text_recognition_model_name='arabic_PP-OCRv5_mobile_rec',
     lang='ar',
     device='cpu',                     # Enforce explicit CPU processing (v3.7 API)
+    enable_mkldnn=False,              # Disable MKLDNN to prevent OneDNN crash on Linux
 )
 
 
