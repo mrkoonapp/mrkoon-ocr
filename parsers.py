@@ -75,11 +75,19 @@ def _extract_tax_number(lines: list[str]) -> str:
     # to find the first valid tax number, skipping dates (which often start with 202x)
     for line in reversed(lines):
         clean_digits = re.sub(r'\D', '', line)
+        
+        # Skip barcode lines (exactly 16 digits)
+        if len(clean_digits) == 16:
+            continue
+            
         if len(clean_digits) >= 9:
             for i in range(len(clean_digits) - 8):
                 candidate = clean_digits[i:i+9]
                 # Avoid capturing dates like 2024, 2025 which coincidentally pass checksum
                 if candidate.startswith("201") or candidate.startswith("202"):
+                    continue
+                # Avoid barcodes (Egyptian tax card barcodes often start with 4669)
+                if candidate.startswith("466"):
                     continue
                 if _validate_tax_number(candidate):
                     return f"{candidate[:3]}-{candidate[3:6]}-{candidate[6:]}"
