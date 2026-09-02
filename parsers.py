@@ -1,69 +1,164 @@
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+# ── Optional: Egyptian Tax Number validation via python-stdnum ──
+try:
+    from stdnum.eg import tn as _eg_tn
+    _HAS_STDNUM = True
+    logger.info("python-stdnum loaded — Egyptian TN checksum validation enabled")
+except ImportError:
+    _HAS_STDNUM = False
+    logger.warning("python-stdnum not installed — tax number validation will be format-only")
+
+
+# Eastern Arabic → Western digit translation table
+_ARABIC_TO_WESTERN = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+
+# Government header / location keywords to skip when looking for company name
+_IGNORE_KEYWORDS = [
+    # Official headers
+    "جمهورية", "وزارة", "مصلحة", "مأمورية", "الشركات", "ضرائب", "بطاقة",
+    "المالية", "المصرية", "العربية",
+    # Common OCR misspellings of headers
+    "جىهوربة", "رزارة", "مصدة", "مسوبة", "لمصربة", "العربة",
+    # Card metadata keywords
+    "رقم", "مسئولية", "مسؤولية", "محدودة", "الاستثمار", "كود", "النشاط",
+    "بداية", "بدايه", "تاريخ", "الاعلان", "الإعلان",
+    # Location / tax-office names (common ones)
+    "مصر", "حلوان", "قليوب", "دار السلام", "الزاويه", "الخضراء",
+    "منفلوط", "منفلو ط", "ثان", "اول", "أول",
+    "مركز", "محافظة", "مدينة", "حى", "حي", "شارع", "قسم",
+    "القاهرة", "الجيزة", "الاسكندرية", "بالقاهرة",
+    # Legal form labels
+    "تأيعةً", "المساهمة", "التضامنية", "فردية", "فرديه",
+]
+
+
+def _validate_tax_number(digits: str) -> bool:
+    """
+    Validate an Egyptian tax registration number.
+    Uses python-stdnum checksum if available, otherwise format-only (9 digits).
+    """
+    clean = re.sub(r'\D', '', digits)
+    if len(clean) != 9:
+        return False
+
+    if _HAS_STDNUM:
+        try:
+            _eg_tn.validate(clean)
+            return True
+        except Exception:
+            # Checksum failed — might still be a valid format that stdnum
+            # doesn't cover, so fall through to format-only.
+            return False
+
+    return True  # Format-only fallback
+
+
+def _extract_tax_number(lines: list[str]) -> str:
+    """
+    Extract the 9-digit tax registration number (XXX-XXX-XXX).
+    Searches bottom→up because the number sits near the card's bottom-right.
+    """
+    # Pass 1: look for explicit dashed format  XXX-XXX-XXX
+    for line in reversed(lines):
+        m = re.search(r'(\d{3})\s*[-–]\s*(\d{3})\s*[-–]\s*(\d{3})', line)
+        if m:
+            candidate = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+            digits = m.group(1) + m.group(2) + m.group(3)
+            if _validate_tax_number(digits):
+                return candidate
+
+    # Pass 2: look for 9 consecutive digits (possibly with small separators)
+    for line in reversed(lines):
+        m = re.search(r'(?<!\d)(\d{3})\s{0,3}(\d{3})\s{0,3}(\d{3})(?!\d)', line)
+        if m:
+            candidate = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+            digits = m.group(1) + m.group(2) + m.group(3)
+            if _validate_tax_number(digits):
+                return candidate
+
+    # Pass 3: looser — up to 2 non-digit chars between groups
+    for line in reversed(lines):
+        m = re.search(r'(?<!\d)(\d{3})[^\d]{0,2}(\d{3})[^\d]{0,2}(\d{3})(?!\d)', line)
+        if m:
+            candidate = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+            digits = m.group(1) + m.group(2) + m.group(3)
+            if _validate_tax_number(digits):
+                return candidate
+
+    return ""
+
+
+def _extract_company_name(lines: list[str]) -> str:
+    """
+    Extract the company / taxpayer name from the OCR lines.
+    Strategy:
+      1. Look for explicit label keywords (اسم الممول / اسم الشركة)
+      2. Fallback: pick the first non-header, non-metadata line
+    """
+    # Strategy 1: explicit label
+    for i, line in enumerate(lines):
+        if any(kw in line for kw in ("اسم الممول", "اسم الشركة", "الممول", "اسم")):
+            # Check if the name is on the same line after a colon / dash
+            for sep in (":", "：", "-", "–"):
+                if sep in line:
+                    parts = line.split(sep, 1)
+                    value = parts[1].strip()
+                    if len(value) > 2:
+                        return value
+
+            # Otherwise take the next non-empty line
+            for j in range(i + 1, min(i + 3, len(lines))):
+                candidate = lines[j].strip()
+                if len(candidate) > 2 and not _is_header_or_metadata(candidate):
+                    return candidate
+            break
+
+    # Strategy 2: skip all headers/metadata, take the first real content line
+    for line in lines:
+        if len(line) < 4:
+            continue
+        if not any(c.isalpha() for c in line):
+            continue
+        if _is_header_or_metadata(line):
+            continue
+        # Skip lines that look like addresses (contain numbers + street words)
+        if re.search(r'\d', line) and any(kw in line for kw in ("ش ", "شارع", "عمارة", "ط ", "برج")):
+            continue
+        return line
+
+    return ""
+
+
+def _is_header_or_metadata(line: str) -> bool:
+    """Check if a line is a government header, location name, or metadata."""
+    return any(kw in line for kw in _IGNORE_KEYWORDS)
+
 
 def parse_egyptian_tax_card(raw_text: str) -> dict:
     """
     Parses raw OCR text from an Egyptian Tax Card and extracts:
     - company_name
     - tax_registration_number
+
+    Works with text that may contain Eastern Arabic numerals (٠-٩).
     """
-    # Translate Eastern Arabic Numerals to standard Western digits
-    arabic_to_western = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
-    raw_text = raw_text.translate(arabic_to_western)
-    
+    # Normalise Eastern Arabic numerals → Western digits
+    normalised = raw_text.translate(_ARABIC_TO_WESTERN)
+
     data = {
         "company_name": "",
-        "tax_registration_number": ""
+        "tax_registration_number": "",
     }
-    
-    lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
-    
-    # 1. Extract tax_registration_number
-    # The user noted it ALWAYS has the style 333-333-333 on the lower right
-    # We will first look for the explicit dashed format
-    for line in lines:
-        # Look for explicit XXX-XXX-XXX (with optional spaces)
-        tax_match_explicit = re.search(r'(\d{3})\s*-\s*(\d{3})\s*-\s*(\d{3})', line)
-        if tax_match_explicit:
-            data["tax_registration_number"] = f"{tax_match_explicit.group(1)}-{tax_match_explicit.group(2)}-{tax_match_explicit.group(3)}"
-            break
-            
-    # If explicit dashes not found, look for exactly 9 digits on a line, 
-    # or a sequence of 9 digits separated by spaces.
-    if not data["tax_registration_number"]:
-        for line in reversed(lines):  # Search from bottom up
-            # Look for 9 digits with at most 2 non-digit chars between groups
-            tax_match_loose = re.search(r'(?<!\d)(\d{3})[^\d]{0,2}(\d{3})[^\d]{0,2}(\d{3})(?!\d)', line)
-            if tax_match_loose:
-                data["tax_registration_number"] = f"{tax_match_loose.group(1)}-{tax_match_loose.group(2)}-{tax_match_loose.group(3)}"
-                break
 
-    # 2. Extract company_name
-    # Heuristic 1: Find explicit keys like "اسم الممول" or "اسم الشركة"
-    for i, line in enumerate(lines):
-        if "اسم الممول" in line or "اسم الشركة" in line or "السم" in line:
-            parts = line.split(':')
-            if len(parts) > 1 and len(parts[1].strip()) > 2:
-                data["company_name"] = parts[1].strip()
-            elif i + 1 < len(lines):
-                data["company_name"] = lines[i+1].strip()
-            break
-            
-    # Heuristic 2: For corporate tax cards, the name is usually directly under the tax office name.
-    if not data["company_name"]:
-        # Added common OCR misspellings and location/city names to avoid grabbing them as company names
-        ignore_keywords = [
-            "جمهورية", "وزارة", "مصلحة", "مأمورية", "الشركات", "ضرائب", "مسئولية", "رقم", "بطاقة",
-            "جىهوربة", "رزارة", "مصدة", "مسوبة", "لمصربة", "العربة", "مصر", "الاستثمار",
-            "حلوان", "قليوب", "دار السلام", "الزاويه", "الخضراء", "منفلوط", "منفلو ط", "ثان",
-            "اول", "مركز", "محافظة", "مدينة", "حى", "شارع", "ش", "قسم", "تأيعةً"
-        ]
-        for line in lines:
-            if len(line) < 4 or not any(c.isalpha() for c in line):
-                continue
-                
-            is_header = any(keyword in line for keyword in ignore_keywords)
-            if not is_header:
-                data["company_name"] = line
-                break
-                 
+    lines = [line.strip() for line in normalised.split('\n') if line.strip()]
+
+    data["tax_registration_number"] = _extract_tax_number(lines)
+    data["company_name"] = _extract_company_name(lines)
+
+    logger.info(f"Parsed tax card → company={data['company_name']!r}, "
+                f"tax_number={data['tax_registration_number']!r}")
     return data

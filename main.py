@@ -73,6 +73,14 @@ async def extract_document(
         
         if method == "ai":
             parsed_data = await run_in_threadpool(process_document_with_ai, image_bytes, document_type)
+            
+            # Translate Eastern Arabic numerals to standard Western digits reliably
+            if isinstance(parsed_data, dict) and "tax_registration_number" in parsed_data:
+                tr_num = parsed_data["tax_registration_number"]
+                if tr_num:
+                    arabic_to_western = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+                    parsed_data["tax_registration_number"] = tr_num.translate(arabic_to_western)
+
             logger.info(f"Successfully processed (ai) | Response: {parsed_data}")
             return JSONResponse(content=parsed_data)
         elif method == "python":

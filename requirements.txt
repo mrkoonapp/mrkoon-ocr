@@ -1,8 +1,12 @@
 fastapi==0.110.0
 uvicorn==0.27.1
 python-multipart==0.0.9
-easyocr==1.7.1
+paddleocr>=2.9.0
+paddlepaddle>=2.6.0
 opencv-python-headless==4.9.0.80
 pydantic==2.6.3
 numpy<2.0.0
+python-stdnum>=1.19
+arabic-reshaper>=3.0.0
+python-bidi>=0.6.0
 openai
