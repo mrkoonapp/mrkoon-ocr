@@ -74,8 +74,8 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
         prompt = (
             "You are an expert OCR and data entry assistant. Analyze the provided image of an Egyptian Tax Card.\n"
             "Extract the following fields accurately:\n"
-            "- company_name: The name of the company or taxpayer (usually in Arabic).\n"
-            "- tax_registration_number: The 9-digit tax registration number (e.g., 123-456-789 or 123456789). Look carefully for numbers.\n\n"
+            "- company_name: The name of the company or taxpayer (usually in Arabic). Do NOT return the country name ('جمهورية مصر العربية') or government department headers ('وزارة المالية', 'مصلحة الضرائب', etc.). The company name is usually below these headers.\n"
+            "- tax_registration_number: The tax registration number. It ALWAYS has this exact format: 333-333-333 (9 digits separated by '-' for each 3 digits). It is located on the lower line on the right side of the card. Ignore any other numbers or formats.\n\n"
             "If a field is not readable, leave its value as an empty string.\n"
             "Respond ONLY with a JSON object containing the exact keys 'company_name' and 'tax_registration_number'."
         )

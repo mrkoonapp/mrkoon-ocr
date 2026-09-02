@@ -14,14 +14,24 @@ def parse_egyptian_tax_card(raw_text: str) -> dict:
     lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
     
     # 1. Extract tax_registration_number
-    # Look for a 9-digit number, often formatted with dashes like 123-456-789
-    # or just a 9 digit string
+    # The user noted it ALWAYS has the style 333-333-333 on the lower right
+    # We will first look for the explicit dashed format
     for line in lines:
-        # Match something like "123-456-789" or "123 456 789"
-        tax_match = re.search(r'(\d{3})[\s\-]*(\d{3})[\s\-]*(\d{3})', line)
-        if tax_match:
-            data["tax_registration_number"] = f"{tax_match.group(1)}-{tax_match.group(2)}-{tax_match.group(3)}"
+        # Look for explicit XXX-XXX-XXX (with optional spaces)
+        tax_match_explicit = re.search(r'(\d{3})\s*-\s*(\d{3})\s*-\s*(\d{3})', line)
+        if tax_match_explicit:
+            data["tax_registration_number"] = f"{tax_match_explicit.group(1)}-{tax_match_explicit.group(2)}-{tax_match_explicit.group(3)}"
             break
+            
+    # If explicit dashes not found, look for exactly 9 digits on a line, 
+    # or a sequence of 9 digits separated by spaces.
+    if not data["tax_registration_number"]:
+        for line in reversed(lines):  # User said it's on the lower line, so search from bottom up
+            # Look for 9 digits isolated or with spaces
+            tax_match_loose = re.search(r'(?<!\d)(\d{3})[\s]*(\d{3})[\s]*(\d{3})(?!\d)', line)
+            if tax_match_loose:
+                data["tax_registration_number"] = f"{tax_match_loose.group(1)}-{tax_match_loose.group(2)}-{tax_match_loose.group(3)}"
+                break
 
     # 2. Extract company_name
     # Heuristic 1: Find explicit keys like "اسم الممول" or "اسم الشركة"
@@ -35,18 +45,18 @@ def parse_egyptian_tax_card(raw_text: str) -> dict:
             break
             
     # Heuristic 2: For corporate tax cards, the name is usually directly under the tax office name.
-    # We skip standard government headers and the first non-header line is usually the company name.
     if not data["company_name"]:
-        ignore_keywords = ["جمهورية", "وزارة", "مصلحة", "مأمورية", "الشركات المساهمة", "ضرائب", "مسئولية محدود", "رقم", "بطاقة"]
+        # Added common OCR misspellings like 'جىهوربة', 'رزارة', 'مصدة', 'مسوبة', 'لمصربة', 'العربة'
+        ignore_keywords = [
+            "جمهورية", "وزارة", "مصلحة", "مأمورية", "الشركات", "ضرائب", "مسئولية", "رقم", "بطاقة",
+            "جىهوربة", "رزارة", "مصدة", "مسوبة", "لمصربة", "العربة", "مصر"
+        ]
         for line in lines:
-            # Skip empty lines or lines that are just numbers/symbols
             if len(line) < 4 or not any(c.isalpha() for c in line):
                 continue
                 
-            # Check if line is a known header
             is_header = any(keyword in line for keyword in ignore_keywords)
             if not is_header:
-                # This is likely the company name (e.g. "كايزيك لتطوير الحلول التقنيه")
                 data["company_name"] = line
                 break
                  
