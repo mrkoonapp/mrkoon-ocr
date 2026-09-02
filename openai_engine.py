@@ -74,8 +74,8 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
         prompt = (
             "You are an expert OCR and data entry assistant. Analyze the provided image of an Egyptian Tax Card.\n"
             "Extract the following fields accurately:\n"
-            "- company_name: The name of the company or taxpayer (usually in Arabic). Do NOT return the country name ('جمهورية مصر العربية') or government department headers ('وزارة المالية', 'مصلحة الضرائب', etc.). The company name is usually below these headers.\n"
-            "- tax_registration_number: The tax registration number. It ALWAYS has this exact format: 333-333-333 (9 digits separated by '-' for each 3 digits). It is located on the lower line on the right side of the card. Ignore any other numbers or formats.\n\n"
+            "- company_name: The name of the company or taxpayer (usually in Arabic). Do NOT return the country name ('جمهورية مصر العربية') or government department headers ('وزارة المالية', 'مصلحة الضرائب', etc.). The company name is usually below these headers. Note that the card might be rotated (e.g. rounded corners to the left or right) or upside down. Please read the text regardless of orientation, look carefully for keywords like 'اسم الممول' or 'اسم الشركة' and extract the name next to or below it.\n"
+            "- tax_registration_number: The tax registration number. It ALWAYS has this exact format: 333-333-333 (9 digits separated by '-' for each 3 digits). It is usually located on the lower side of the card, but account for rotated layouts. VERY IMPORTANT: The numbers might be written in Eastern Arabic numerals (١٢٣٤٥٦٧٨٩٠). If they are, you MUST translate them into standard Western digits (0-9) in your output format (e.g., 123-456-789). Ignore any other numbers or dates.\n\n"
             "If a field is not readable, leave its value as an empty string.\n"
             "Respond ONLY with a JSON object containing the exact keys 'company_name' and 'tax_registration_number'."
         )

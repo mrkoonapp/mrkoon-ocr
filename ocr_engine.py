@@ -13,8 +13,17 @@ def extract_text_from_image(image_bytes: bytes) -> str:
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     
-    # readtext returns a list of tuples: (bbox, text, confidence)
-    result = reader.readtext(img)
+    # Preprocessing to improve OCR accuracy
+    # Resize to 2x scale
+    width = int(img.shape[1] * 2)
+    height = int(img.shape[0] * 2)
+    resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_CUBIC)
+    
+    # Convert to grayscale
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    
+    # readtext with detail=1, contrast adjusting
+    result = reader.readtext(gray, detail=1, paragraph=False, contrast_ths=0.1, adjust_contrast=0.5)
     
     # We extract the text parts and join them with newlines
     extracted_lines = [res[1] for res in result]

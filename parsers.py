@@ -6,6 +6,10 @@ def parse_egyptian_tax_card(raw_text: str) -> dict:
     - company_name
     - tax_registration_number
     """
+    # Translate Eastern Arabic Numerals to standard Western digits
+    arabic_to_western = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+    raw_text = raw_text.translate(arabic_to_western)
+    
     data = {
         "company_name": "",
         "tax_registration_number": ""
@@ -26,9 +30,9 @@ def parse_egyptian_tax_card(raw_text: str) -> dict:
     # If explicit dashes not found, look for exactly 9 digits on a line, 
     # or a sequence of 9 digits separated by spaces.
     if not data["tax_registration_number"]:
-        for line in reversed(lines):  # User said it's on the lower line, so search from bottom up
-            # Look for 9 digits isolated or with spaces
-            tax_match_loose = re.search(r'(?<!\d)(\d{3})[\s]*(\d{3})[\s]*(\d{3})(?!\d)', line)
+        for line in reversed(lines):  # Search from bottom up
+            # Look for 9 digits with at most 2 non-digit chars between groups
+            tax_match_loose = re.search(r'(?<!\d)(\d{3})[^\d]{0,2}(\d{3})[^\d]{0,2}(\d{3})(?!\d)', line)
             if tax_match_loose:
                 data["tax_registration_number"] = f"{tax_match_loose.group(1)}-{tax_match_loose.group(2)}-{tax_match_loose.group(3)}"
                 break
@@ -46,10 +50,12 @@ def parse_egyptian_tax_card(raw_text: str) -> dict:
             
     # Heuristic 2: For corporate tax cards, the name is usually directly under the tax office name.
     if not data["company_name"]:
-        # Added common OCR misspellings like 'جىهوربة', 'رزارة', 'مصدة', 'مسوبة', 'لمصربة', 'العربة'
+        # Added common OCR misspellings and location/city names to avoid grabbing them as company names
         ignore_keywords = [
             "جمهورية", "وزارة", "مصلحة", "مأمورية", "الشركات", "ضرائب", "مسئولية", "رقم", "بطاقة",
-            "جىهوربة", "رزارة", "مصدة", "مسوبة", "لمصربة", "العربة", "مصر"
+            "جىهوربة", "رزارة", "مصدة", "مسوبة", "لمصربة", "العربة", "مصر", "الاستثمار",
+            "حلوان", "قليوب", "دار السلام", "الزاويه", "الخضراء", "منفلوط", "منفلو ط", "ثان",
+            "اول", "مركز", "محافظة", "مدينة", "حى", "شارع", "ش", "قسم", "تأيعةً"
         ]
         for line in lines:
             if len(line) < 4 or not any(c.isalpha() for c in line):
