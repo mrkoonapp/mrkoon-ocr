@@ -3,8 +3,16 @@ import json
 import os
 from openai import OpenAI
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
+_client = None
+
+def get_openai_client():
+    global _client
+    if _client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set. Please configure it to use the AI method.")
+        _client = OpenAI(api_key=api_key)
+    return _client
 
 def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
     """
@@ -25,7 +33,7 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
             "Respond ONLY with a JSON object containing a single key 'extracted_text'."
         )
         
-    response = client.chat.completions.create(
+    response = get_openai_client().chat.completions.create(
         model="gpt-4o",
         messages=[
             {
