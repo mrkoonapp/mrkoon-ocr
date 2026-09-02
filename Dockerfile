@@ -19,7 +19,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download PaddleOCR models at build time so the first request isn't slow
-RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(use_textline_orientation=True, use_doc_orientation_classify=False, use_doc_unwarping=False, text_detection_model_name='PP-OCRv5_server_det', text_recognition_model_name='arabic_PP-OCRv5_mobile_rec', lang='ar', device='cpu')"
+RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(use_textline_orientation=False, use_doc_orientation_classify=False, use_doc_unwarping=False, text_detection_model_name='PP-OCRv5_mobile_det', text_recognition_model_name='arabic_PP-OCRv5_mobile_rec', lang='ar', device='cpu')"
 
 # Copy the rest of the application
 COPY . .
