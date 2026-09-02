@@ -40,6 +40,8 @@ async def cleanup_old_images():
         # Wait 24 hours before running again
         await asyncio.sleep(24 * 60 * 60)
 
+from fastapi.staticfiles import StaticFiles
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Start background task
@@ -49,6 +51,8 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 app = FastAPI(title="MrKoon OCR Service", lifespan=lifespan)
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 @app.post("/extract")
 async def extract_document(
