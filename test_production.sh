@@ -7,7 +7,7 @@ echo "--------------------------------------------------------------------------
 for img in test_image*.*; do
     if [ ! -f "$img" ]; then continue; fi
 
-    for method in "ai" "python"; do
+    for method in "ai"; do
         # Record start time
         start_time=$(date +%s.%N)
         
