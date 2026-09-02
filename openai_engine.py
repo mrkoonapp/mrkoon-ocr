@@ -74,7 +74,8 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
         prompt = (
             "You are an expert OCR and data entry assistant. Analyze the provided image to determine if it is an Egyptian Tax Card (بطاقة ضريبية).\n"
             "FIRST, check if the image is actually a Tax Card. If it is a National ID (بطاقة تحقيق شخصية / بطاقة رقم قومي) or any other document, you MUST return empty strings for all fields.\n"
-            "If it IS a Tax Card, extract the following fields accurately:\n"
+            "SECOND, check if the image is a screenshot (e.g., showing a phone's status bar, battery, time, or app interfaces like Facebook) or a photo of a screen. If it is a screenshot or a photo of a screen, you MUST return empty strings for all fields, as we only accept direct photographs or scans of the physical card.\n"
+            "If it IS a valid physical Tax Card, extract the following fields accurately:\n"
             "- company_name: The name of the company or taxpayer (usually in Arabic). Do NOT return the country name ('جمهورية مصر العربية') or government department headers ('وزارة المالية', 'مصلحة الضرائب', etc.). The company name is usually below these headers. Note that the card might be rotated (e.g. rounded corners to the left or right) or upside down. Please read the text regardless of orientation, look carefully for keywords like 'اسم الممول' or 'اسم الشركة' and extract the name next to or below it.\n"
             "- tax_registration_number: The tax registration number. It ALWAYS has EXACTLY 9 digits, typically separated by '-' for each 3 digits. It is located on the lower right side of the card, just above the bottom decorative border. VERY IMPORTANT: Do NOT extract the long 14-digit or 16-digit standard number (Western digits 0-9) located on the bottom left (that is a barcode/registration number, not the tax number). Only extract the 9-digit sequence on the right.\n"
             "To read the Eastern Arabic numerals correctly, use this visual guide:\n"
@@ -89,12 +90,13 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
             "  * ٨ is 8 (looks like an inverted V or ^)\n"
             "  * ٩ is 9\n"
             "Look extremely closely at the shapes. Write the digits EXACTLY as they appear in the image from left to right using Eastern Arabic numerals (e.g. ٥٨٢-٣٤٤-٥٧٢). DO NOT convert or translate them to Western digits (0-9).\n\n"
-            "If a field is not readable or the document is not a tax card, leave its value as an empty string.\n"
+            "If a field is not readable, the document is not a tax card, or it is a screenshot/photo of a screen, leave its value as an empty string.\n"
             "Respond ONLY with a JSON object containing the exact keys 'company_name' and 'tax_registration_number'."
         )
     else:
         prompt = (
             "Extract all the text from the provided image accurately.\n\n"
+            "IMPORTANT: Check if the image is a screenshot (e.g., showing a phone's status bar, battery, time, or app interfaces) or a photo of a screen. If it is a screenshot or a photo of a screen, you MUST return an empty string for the extracted text.\n\n"
             "Respond ONLY with a JSON object containing a single key 'extracted_text'."
         )
         
