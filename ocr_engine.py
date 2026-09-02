@@ -18,10 +18,9 @@ except ImportError:
 # use_angle_cls=True detects rotated text automatically
 # ──────────────────────────────────────────────
 _ocr = PaddleOCR(
-    use_angle_cls=True,
+    use_textline_orientation=True,
     lang='ar',
     use_gpu=False,
-    show_log=False,
 )
 
 
