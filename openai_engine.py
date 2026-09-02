@@ -22,10 +22,10 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
     
     if document_type == 'egyptian_tax_card':
         prompt = (
-            "Extract the following information from the provided Egyptian Tax Card image:\n"
+            "You are an automated data entry assistant. Please transcribe the following fields from the provided document image:\n"
             "- company_name\n"
-            "- tax_registration_number (usually a 9-digit number, e.g., 123-456-789 or similar)\n\n"
-            "Respond ONLY with a JSON object containing the keys 'company_name' and 'tax_registration_number'."
+            "- tax_registration_number (usually a 9-digit number, e.g., 123-456-789)\n\n"
+            "Respond ONLY with a JSON object containing the exact keys 'company_name' and 'tax_registration_number'."
         )
     else:
         prompt = (
