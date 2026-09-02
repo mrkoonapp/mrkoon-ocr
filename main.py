@@ -1,6 +1,13 @@
+import os
+import time
+import asyncio
+import uuid
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse
 import uvicorn
+import logging
 from typing import Optional
 
 from ocr_engine import extract_text_from_image
@@ -9,7 +16,39 @@ from openai_engine import process_document_with_ai
 
 from fastapi.concurrency import run_in_threadpool
 
-app = FastAPI(title="MrKoon OCR Service")
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60
+
+async def cleanup_old_images():
+    while True:
+        try:
+            now = time.time()
+            for filename in os.listdir(UPLOAD_DIR):
+                file_path = os.path.join(UPLOAD_DIR, filename)
+                if os.path.isfile(file_path):
+                    if now - os.path.getmtime(file_path) > SEVEN_DAYS_SECONDS:
+                        os.remove(file_path)
+                        logger.info(f"Deleted old image: {filename}")
+        except Exception as e:
+            logger.error(f"Error during cleanup of old images: {e}")
+        
+        # Wait 24 hours before running again
+        await asyncio.sleep(24 * 60 * 60)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Start background task
+    task = asyncio.create_task(cleanup_old_images())
+    yield
+    # Shutdown: Cancel background task
+    task.cancel()
+
+app = FastAPI(title="MrKoon OCR Service", lifespan=lifespan)
 
 @app.post("/extract")
 async def extract_document(
@@ -18,10 +57,19 @@ async def extract_document(
     file: UploadFile = File(...)
 ):
     try:
+        logger.info(f"Received request: /extract | method: {method} | document_type: {document_type} | file: {file.filename}")
         image_bytes = await file.read()
+        
+        # Save the image
+        safe_filename = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join(UPLOAD_DIR, safe_filename)
+        with open(file_path, "wb") as f:
+            f.write(image_bytes)
+        logger.info(f"Saved image to {file_path}")
         
         if method == "ai":
             parsed_data = await run_in_threadpool(process_document_with_ai, image_bytes, document_type)
+            logger.info(f"Successfully processed (ai) | Response: {parsed_data}")
             return JSONResponse(content=parsed_data)
         elif method == "python":
             # 1. Extract raw text
@@ -30,14 +78,18 @@ async def extract_document(
             # 2. Parse based on document type
             if document_type == 'egyptian_tax_card':
                 parsed_data = parse_egyptian_tax_card(raw_text)
+                logger.info(f"Successfully processed (python - egyptian_tax_card) | Response: {parsed_data}")
                 return JSONResponse(content=parsed_data)
             else:
                 # Default fallback
+                logger.info(f"Successfully processed (python - default) | Response text length: {len(raw_text)}")
                 return JSONResponse(content={"extracted_text": raw_text})
         else:
+            logger.warning(f"Invalid method requested: {method}")
             return JSONResponse(status_code=400, content={"error": "Invalid method. Choose 'ai' or 'python'."})
             
     except Exception as e:
+        logger.error(f"Error during extraction: {str(e)}", exc_info=True)
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 if __name__ == "__main__":
