@@ -49,10 +49,18 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
                 ]
             }
         ],
-        response_format={ "type": "json_object" }
+        response_format={ "type": "json_object" },
+        max_tokens=1000
     )
     
     content = response.choices[0].message.content
+    if content is None:
+        return {
+            "error": "AI returned empty content", 
+            "finish_reason": response.choices[0].finish_reason,
+            "refusal": getattr(response.choices[0].message, "refusal", None)
+        }
+        
     try:
         return json.loads(content)
     except:
