@@ -72,11 +72,12 @@ def process_document_with_ai(image_bytes: bytes, document_type: str) -> dict:
     
     if document_type == 'egyptian_tax_card':
         prompt = (
-            "You are an expert OCR and data entry assistant. Analyze the provided image of an Egyptian Tax Card.\n"
-            "Extract the following fields accurately:\n"
+            "You are an expert OCR and data entry assistant. Analyze the provided image to determine if it is an Egyptian Tax Card (بطاقة ضريبية).\n"
+            "FIRST, check if the image is actually a Tax Card. If it is a National ID (بطاقة تحقيق شخصية / بطاقة رقم قومي) or any other document, you MUST return empty strings for all fields.\n"
+            "If it IS a Tax Card, extract the following fields accurately:\n"
             "- company_name: The name of the company or taxpayer (usually in Arabic). Do NOT return the country name ('جمهورية مصر العربية') or government department headers ('وزارة المالية', 'مصلحة الضرائب', etc.). The company name is usually below these headers. Note that the card might be rotated (e.g. rounded corners to the left or right) or upside down. Please read the text regardless of orientation, look carefully for keywords like 'اسم الممول' or 'اسم الشركة' and extract the name next to or below it.\n"
-            "- tax_registration_number: The tax registration number. It ALWAYS has this exact format: 333-333-333 (9 digits separated by '-' for each 3 digits). It is usually located on the lower side of the card, but account for rotated layouts. VERY IMPORTANT: The numbers might be written in Eastern Arabic numerals (١٢٣٤٥٦٧٨٩٠). If they are, you MUST translate them into standard Western digits (0-9) in your output format (e.g., 123-456-789). Ignore any other numbers or dates.\n\n"
-            "If a field is not readable, leave its value as an empty string.\n"
+            "- tax_registration_number: The tax registration number. It ALWAYS has EXACTLY 9 digits, formatted as 333-333-333 (separated by '-' for each 3 digits). It is located on the lower right side of the card, just above the bottom decorative border. VERY IMPORTANT: The number is usually written in Eastern Arabic numerals (١٢٣٤٥٦٧٨٩٠). You MUST translate them into standard Western digits (0-9) in your output format (e.g., 123-456-789). Do NOT extract the long 14-digit or 16-digit standard number (Western digits 0-9) located on the bottom left (that is a barcode/registration number, not the tax number). Only extract the 9-digit Arabic numeral sequence on the right.\n\n"
+            "If a field is not readable or the document is not a tax card, leave its value as an empty string.\n"
             "Respond ONLY with a JSON object containing the exact keys 'company_name' and 'tax_registration_number'."
         )
     else:
