@@ -24,7 +24,7 @@ _IGNORE_KEYWORDS = [
     # Common OCR misspellings of headers
     "جىهوربة", "رزارة", "مصدة", "مسوبة", "لمصربة", "العربة",
     # Card metadata keywords
-    "رقم", "مسئولية", "مسؤولية", "محدودة", "الاستثمار", "كود", "النشاط",
+    "رقم", "مسئولية", "مسؤولية", "مسؤلية", "مسولية", "محدودة", "مطوده", "مطودء", "محطوده", "الاستثمار", "كود", "النشاط",
     "بداية", "بدايه", "تاريخ", "الاعلان", "الإعلان",
     # Location / tax-office names (common ones)
     "مصر", "حلوان", "قليوب", "دار السلام", "الزاويه", "الخضراء",
@@ -66,28 +66,23 @@ def _extract_tax_number(lines: list[str]) -> str:
     for line in reversed(lines):
         m = re.search(r'(\d{3})\s*[-–]\s*(\d{3})\s*[-–]\s*(\d{3})', line)
         if m:
-            candidate = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
             digits = m.group(1) + m.group(2) + m.group(3)
-            if _validate_tax_number(digits):
-                return candidate
+            if not digits.startswith("201") and not digits.startswith("202"):
+                if _validate_tax_number(digits):
+                    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
-    # Pass 2: look for 9 consecutive digits (possibly with small separators)
+    # Pass 2: Extract all digits from the line and use a sliding 9-digit window
+    # to find the first valid tax number, skipping dates (which often start with 202x)
     for line in reversed(lines):
-        m = re.search(r'(?<!\d)(\d{3})\s{0,3}(\d{3})\s{0,3}(\d{3})(?!\d)', line)
-        if m:
-            candidate = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
-            digits = m.group(1) + m.group(2) + m.group(3)
-            if _validate_tax_number(digits):
-                return candidate
-
-    # Pass 3: looser — up to 2 non-digit chars between groups
-    for line in reversed(lines):
-        m = re.search(r'(?<!\d)(\d{3})[^\d]{0,2}(\d{3})[^\d]{0,2}(\d{3})(?!\d)', line)
-        if m:
-            candidate = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
-            digits = m.group(1) + m.group(2) + m.group(3)
-            if _validate_tax_number(digits):
-                return candidate
+        clean_digits = re.sub(r'\D', '', line)
+        if len(clean_digits) >= 9:
+            for i in range(len(clean_digits) - 8):
+                candidate = clean_digits[i:i+9]
+                # Avoid capturing dates like 2024, 2025 which coincidentally pass checksum
+                if candidate.startswith("201") or candidate.startswith("202"):
+                    continue
+                if _validate_tax_number(candidate):
+                    return f"{candidate[:3]}-{candidate[3:6]}-{candidate[6:]}"
 
     return ""
 

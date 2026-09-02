@@ -1,4 +1,3 @@
-"""Quick test: run OCR on a test image and measure time."""
 import time
 import sys
 
@@ -14,7 +13,10 @@ test_file = sys.argv[1] if len(sys.argv) > 1 else "test_image.jpeg"
 with open(test_file, "rb") as f:
     image_bytes = f.read()
 
-print(f"Testing: {test_file}")
+print("Warming up model (first predict is slower)...")
+_ = extract_text_from_image(image_bytes)
+
+print(f"\nTesting: {test_file} (Warm Model)")
 print("=" * 60)
 
 # Time the extraction
