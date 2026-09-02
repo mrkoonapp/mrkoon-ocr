@@ -99,9 +99,38 @@ async def extract_document(
                 # Default fallback
                 logger.info(f"Successfully processed (python - default) | Response text length: {len(raw_text)}")
                 return JSONResponse(content={"extracted_text": raw_text})
+        elif method == "surya":
+            from surya_engine import extract_text_with_surya
+            # 1. Extract raw text using Surya OCR
+            raw_text = await run_in_threadpool(extract_text_with_surya, image_bytes)
+            
+            # 2. Parse based on document type
+            if document_type == 'egyptian_tax_card':
+                parsed_data = parse_egyptian_tax_card(raw_text)
+                logger.info(f"Successfully processed (surya - egyptian_tax_card) | Response: {parsed_data}")
+                return JSONResponse(content=parsed_data)
+            else:
+                return JSONResponse(content={"extracted_text": raw_text})
+        elif method == "stdnum":
+            # Standalone method to validate a raw tax registration number string
+            from stdnum.eg import tn
+            from fastapi import Request
+            
+            # If a file was uploaded, try to parse it using python engine first
+            raw_text = await run_in_threadpool(extract_text_from_image, image_bytes)
+            parsed_data = parse_egyptian_tax_card(raw_text)
+            
+            # Or if they just wanted validation, they can pass the text
+            number = parsed_data.get("tax_registration_number", "")
+            is_valid = tn.is_valid(number)
+            
+            return JSONResponse(content={
+                "tax_registration_number": number,
+                "is_valid_egyptian_tax_number": is_valid
+            })
         else:
             logger.warning(f"Invalid method requested: {method}")
-            return JSONResponse(status_code=400, content={"error": "Invalid method. Choose 'ai' or 'python'."})
+            return JSONResponse(status_code=400, content={"error": "Invalid method. Choose 'ai', 'python', 'surya', or 'stdnum'."})
             
     except Exception as e:
         logger.error(f"Error during extraction: {str(e)}", exc_info=True)
