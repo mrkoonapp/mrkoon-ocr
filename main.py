@@ -7,6 +7,8 @@ from ocr_engine import extract_text_from_image
 from parsers import parse_egyptian_tax_card
 from openai_engine import process_document_with_ai
 
+from fastapi.concurrency import run_in_threadpool
+
 app = FastAPI(title="MrKoon OCR Service")
 
 @app.post("/extract")
@@ -19,11 +21,11 @@ async def extract_document(
         image_bytes = await file.read()
         
         if method == "ai":
-            parsed_data = process_document_with_ai(image_bytes, document_type)
+            parsed_data = await run_in_threadpool(process_document_with_ai, image_bytes, document_type)
             return JSONResponse(content=parsed_data)
         elif method == "python":
             # 1. Extract raw text
-            raw_text = extract_text_from_image(image_bytes)
+            raw_text = await run_in_threadpool(extract_text_from_image, image_bytes)
             
             # 2. Parse based on document type
             if document_type == 'egyptian_tax_card':
