@@ -10,4 +10,3 @@ python-stdnum>=1.19
 arabic-reshaper>=3.0.0
 python-bidi>=0.6.0
 openai
-surya-ocr==0.6.1

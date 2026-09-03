@@ -12,7 +12,7 @@ def test_images(api_url):
     print("-" * 80)
     
     for img_path in images:
-        for method in ["ai", "python", "surya", "stdnum"]:
+        for method in ["ai", "python", "stdnum"]:
             try:
                 with open(img_path, "rb") as f:
                     files = {"file": (img_path, f, "image/jpeg")}
