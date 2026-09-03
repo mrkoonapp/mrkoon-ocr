@@ -8,11 +8,11 @@ def test_images(api_url):
     images.sort()
     
     print(f"Testing {len(images)} images against {api_url}...\n")
-    print(f"{'Image':<18} | {'Method':<6} | {'Company Name':<30} | {'Tax Number':<15}")
+    print(f"{'Image':<18} | {'Method':<6} | {'Time(s)':<7} | {'Company Name':<30} | {'Tax Number':<15}")
     print("-" * 80)
     
     for img_path in images:
-        for method in ["ai", "python"]:
+        for method in ["ai", "python", "surya", "stdnum"]:
             try:
                 with open(img_path, "rb") as f:
                     files = {"file": (img_path, f, "image/jpeg")}
@@ -21,17 +21,30 @@ def test_images(api_url):
                     response = requests.post(api_url, data=data, files=files)
                     
                 if response.status_code == 200:
+                    duration = time.time() - start_time
                     res_json = response.json()
-                    company = res_json.get("company_name", "N/A")
-                    tax_num = res_json.get("tax_registration_number", "N/A")
                     
-                    # Truncate strings for formatting
-                    company = (company[:27] + '...') if len(company) > 30 else company
-                    tax_num = (tax_num[:12] + '...') if len(tax_num) > 15 else tax_num
-                    
-                    print(f"{img_path:<18} | {method:<6} | {company:<30} | {tax_num:<15}")
+                    if method == "stdnum":
+                        tax_num = res_json.get("tax_registration_number", "N/A")
+                        is_valid = res_json.get("is_valid_egyptian_tax_number", False)
+                        valid_str = "VALID" if is_valid else "INVALID"
+                        print(f"{img_path:<18} | {method:<6} | {duration:<7.2f} | Stdnum Check: {valid_str:<16} | {tax_num:<15}")
+                    else:
+                        company = res_json.get("company_name", "N/A")
+                        if company is None:
+                            company = "N/A"
+                        tax_num = res_json.get("tax_registration_number", "N/A")
+                        if tax_num is None:
+                            tax_num = "N/A"
+                        
+                        # Truncate strings for formatting
+                        company = (company[:27] + '...') if len(company) > 30 else company
+                        tax_num = (tax_num[:12] + '...') if len(tax_num) > 15 else tax_num
+                        
+                        print(f"{img_path:<18} | {method:<6} | {duration:<7.2f} | {company:<30} | {tax_num:<15}")
                 else:
-                    print(f"{img_path:<18} | {method:<6} | Error {response.status_code:<24} | N/A")
+                    duration = time.time() - start_time
+                    print(f"{img_path:<18} | {method:<6} | {duration:<7.2f} | Error {response.status_code}: {response.text[:20]:<15} | N/A")
                     
             except Exception as e:
                 print(f"{img_path:<18} | {method:<6} | Exception: {str(e)[:20]:<19} | N/A")
