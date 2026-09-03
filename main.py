@@ -100,22 +100,20 @@ async def extract_document(
                 logger.info(f"Successfully processed (python - default) | Response text length: {len(raw_text)}")
                 return JSONResponse(content={"extracted_text": raw_text})
         elif method == "stdnum":
-            # Standalone method to validate a raw tax registration number string
+            # Standalone method to validate and return the full payload
             from stdnum.eg import tn
-            from fastapi import Request
             
-            # If a file was uploaded, try to parse it using python engine first
             raw_text = await run_in_threadpool(extract_text_from_image, image_bytes)
             parsed_data = parse_egyptian_tax_card(raw_text)
             
-            # Or if they just wanted validation, they can pass the text
             number = parsed_data.get("tax_registration_number", "")
-            is_valid = tn.is_valid(number)
-            
-            return JSONResponse(content={
-                "tax_registration_number": number,
-                "is_valid_egyptian_tax_number": is_valid
-            })
+            if number:
+                parsed_data["is_valid_egyptian_tax_number"] = tn.is_valid(number)
+            else:
+                parsed_data["is_valid_egyptian_tax_number"] = False
+                
+            logger.info(f"Successfully processed (stdnum) | Response: {parsed_data}")
+            return JSONResponse(content=parsed_data)
         else:
             logger.warning(f"Invalid method requested: {method}")
             return JSONResponse(status_code=400, content={"error": "Invalid method. Choose 'ai', 'python', or 'stdnum'."})
